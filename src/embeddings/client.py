@@ -9,12 +9,14 @@ from abc import ABC, abstractmethod
 from typing import List, Sequence
 
 import numpy as np
+from openai import OpenAI
 
 
 class EmbeddingClient(ABC):
     """Interface for services that convert text into dense vectors."""
 
     dimension: int
+    model_name: str
 
     @abstractmethod
     def embed_documents(self, texts: Sequence[str]) -> List[np.ndarray]:
@@ -32,6 +34,7 @@ class HashEmbeddingClient(EmbeddingClient):
 
     def __init__(self, dimension: int = 384) -> None:
         self.dimension = dimension
+        self.model_name = "hash-embedding"
 
     def embed_documents(self, texts: Sequence[str]) -> List[np.ndarray]:
         vectors: List[np.ndarray] = []
@@ -55,5 +58,39 @@ class HashEmbeddingClient(EmbeddingClient):
             values.append(normalized)
             index += 1
         return values[:dimension]
+
+
+class OpenAIEmbeddingClient(EmbeddingClient):
+    """Embedding client backed by OpenAI's embeddings API."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        api_base: str | None = None,
+        dimension: int | None = None,
+    ) -> None:
+        client_kwargs = {"api_key": api_key}
+        if api_base:
+            client_kwargs["base_url"] = api_base
+        self._client = OpenAI(**client_kwargs)
+        self.model_name = model
+        self.dimension = dimension or 0
+
+    def embed_documents(self, texts: Sequence[str]) -> List[np.ndarray]:
+        if not texts:
+            return []
+
+        response = self._client.embeddings.create(model=self.model_name, input=list(texts))
+        embeddings: List[np.ndarray] = []
+        for item in response.data:
+            vector = np.asarray(item.embedding, dtype=np.float32)
+            embeddings.append(vector)
+
+        if not self.dimension and embeddings:
+            self.dimension = embeddings[0].shape[0]
+
+        return embeddings
 
 

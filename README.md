@@ -59,8 +59,12 @@ The application reads the following variables (set them locally or via Docker Co
 | `CODXA_NEO4J_USER` | Neo4j username | – |
 | `CODXA_NEO4J_PASSWORD` | Neo4j password | – |
 | `CODXA_NEO4J_DATABASE` | Target database | `neo4j` |
-| `CODXA_EMBEDDINGS_DB` | SQLite path for vector store | `data/embeddings.db` |
-| `CODXA_EMBEDDINGS_DIM` | Embedding dimension | `384` |
+| `OPENAI_API_KEY` | Required for embeddings & assistant search | – |
+| `OPENAI_EMBED_MODEL` | OpenAI embedding model | `text-embedding-3-large` |
+| `OPENAI_API_BASE` | Optional custom OpenAI base URL | – |
+| `CODXA_KEYWORD_INDEX_NAME` | Neo4j fulltext index name | `codex_keyword_index` |
+| `CODXA_VECTOR_INDEX_NAME` | Neo4j vector index name | `codex_vector_index` |
+| `CODXA_VECTOR_DIMENSIONS` | Embedding vector dimensions | `3072` |
 
 ---
 
@@ -73,7 +77,7 @@ The repository ships with a ready-to-use Dockerfile and `docker-compose.yml` tha
 
 ```bash
 # Prepare local bind mounts for data persistence
-mkdir -p data neo4j/data neo4j/logs neo4j/plugins
+mkdir -p neo4j/data neo4j/logs neo4j/plugins
 
 # Build images and start services
 docker compose up --build
@@ -106,8 +110,9 @@ Stop everything with `docker compose down`. To nuke volumes, add `--volumes`.
    ```
 6. Generate embeddings (optional but recommended for semantic search / assistant):
    ```bash
-   python -m src.embeddings --store data/embeddings.db
+   python -m src.embeddings --batch-size 64
    ```
+   (requires `OPENAI_API_KEY`)
 
 ---
 

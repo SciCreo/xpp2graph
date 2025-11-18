@@ -2,16 +2,15 @@
 Embeddings and vector search utilities for Codex AOTGraph.
 """
 
-from .client import EmbeddingClient, HashEmbeddingClient
+from .client import EmbeddingClient, HashEmbeddingClient, OpenAIEmbeddingClient
 from .pipeline import EmbeddingPipeline
-from .store import LocalVectorStore
 from .text import NodeTextBuilder
 
 __all__ = [
     "EmbeddingClient",
     "HashEmbeddingClient",
+    "OpenAIEmbeddingClient",
     "EmbeddingPipeline",
-    "LocalVectorStore",
     "NodeTextBuilder",
 ]
 

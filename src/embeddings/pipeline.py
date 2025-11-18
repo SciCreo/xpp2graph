@@ -5,15 +5,21 @@ Embedding generation pipeline for Codex AOTGraph.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Iterator, List, Sequence
 
 import numpy as np
 from neo4j import GraphDatabase
 
-from src.config import Neo4jSettings, load_settings
-from src.embeddings.client import EmbeddingClient, HashEmbeddingClient
-from src.embeddings.store import LocalVectorStore, VectorEntry, VectorMatch
+from src.config import (
+    GraphIndexSettings,
+    Neo4jSettings,
+    OpenAISettings,
+    load_index_settings,
+    load_openai_settings,
+    load_settings,
+)
+from src.embeddings.client import EmbeddingClient, OpenAIEmbeddingClient
 from src.embeddings.text import NodeText, NodeTextBuilder
 
 
@@ -21,22 +27,33 @@ from src.embeddings.text import NodeText, NodeTextBuilder
 class EmbeddingPipeline:
     settings: Neo4jSettings
     embedding_client: EmbeddingClient
-    store: LocalVectorStore
+    index_settings: GraphIndexSettings
     labels: Sequence[str] = ("Method", "Class", "Table", "Field")
 
     @classmethod
     def default(
         cls,
         *,
-        store_path: Path,
-        embedding_client: EmbeddingClient | None = None,
         settings: Neo4jSettings | None = None,
+        openai_settings: OpenAISettings | None = None,
+        embedding_client: EmbeddingClient | None = None,
+        index_settings: GraphIndexSettings | None = None,
     ) -> "EmbeddingPipeline":
         settings = settings or load_settings()
-        embedding_client = embedding_client or HashEmbeddingClient()
-        store_path.parent.mkdir(parents=True, exist_ok=True)
-        store = LocalVectorStore(store_path, dimension=embedding_client.dimension)
-        return cls(settings=settings, embedding_client=embedding_client, store=store)
+        index_settings = index_settings or load_index_settings()
+        if embedding_client is None:
+            openai_settings = openai_settings or load_openai_settings()
+            embedding_client = OpenAIEmbeddingClient(
+                api_key=openai_settings.api_key,
+                model=openai_settings.model,
+                api_base=openai_settings.api_base,
+                dimension=index_settings.vector_dimensions,
+            )
+        return cls(
+            settings=settings,
+            embedding_client=embedding_client,
+            index_settings=index_settings,
+        )
 
     def run(self, labels: Sequence[str] | None = None, batch_size: int = 64) -> int:
         labels = labels or self.labels
@@ -51,34 +68,23 @@ class EmbeddingPipeline:
             for batch in _batched(node_texts, batch_size):
                 texts = [node.text for node in batch]
                 embeddings = self.embedding_client.embed_documents(texts)
-                entries = [
-                    VectorEntry(
-                        node_id=node.node_id,
-                        label=node.label,
-                        vector=embeddings[idx],
-                        text=node.text,
-                        metadata=node.metadata,
-                    )
+                rows = [
+                    {
+                        "id": node.node_id,
+                        "summary": node.text,
+                        "embedding": self._vector_to_list(embeddings[idx]),
+                        "metadata": node.metadata,
+                        "label": node.label,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
                     for idx, node in enumerate(batch)
                 ]
-                self.store.upsert(entries)
-                total += len(entries)
+                if rows:
+                    self._upsert_embeddings(driver, rows)
+                    total += len(rows)
         finally:
             driver.close()
         return total
-
-    def similarity_search(
-        self,
-        query: str,
-        *,
-        top_k: int = 5,
-        label: str | None = None,
-    ) -> List[VectorMatch]:
-        embedding = self.embedding_client.embed_documents([query])[0]
-        return self.store.similarity_search(embedding, top_k=top_k, label=label)
-
-    def close(self) -> None:
-        self.store.close()
 
     @staticmethod
     def _filter_node_texts(
@@ -88,6 +94,29 @@ class EmbeddingPipeline:
         for node_text in iterator:
             if node_text.label in allowed_labels:
                 yield node_text
+
+    def _vector_to_list(self, vector: np.ndarray | Sequence[float]) -> List[float]:
+        if isinstance(vector, np.ndarray):
+            return vector.astype(float).tolist()
+        return [float(v) for v in vector]
+
+    def _upsert_embeddings(self, driver, rows: List[dict]) -> None:
+        with driver.session(database=self.settings.database) as session:
+            session.run(
+                """
+                UNWIND $rows AS row
+                MATCH (n {id: row.id})
+                SET n.summary = row.summary,
+                    n.embedding = row.embedding,
+                    n.embeddingModel = $model,
+                    n.searchLabel = row.label,
+                    n.searchMetadata = row.metadata,
+                    n.searchUpdatedAt = row.updated_at,
+                    n:Searchable
+                """,
+                rows=rows,
+                model=self.embedding_client.model_name,
+            )
 
 
 def _batched(iterator: Iterator[NodeText], size: int) -> Iterator[List[NodeText]]:

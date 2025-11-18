@@ -4,7 +4,6 @@ FastAPI application exposing Codex AOTGraph queries.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -17,8 +16,6 @@ from src.api.models import ClassHierarchy, FieldAccessResponse, WhereUsedRespons
 from src.api.queries import GraphQueryService
 from src.config import Neo4jSettings, load_settings
 from src.assistant import AssistantToolkit
-from src.embeddings.store import LocalVectorStore
-from src.embeddings.client import HashEmbeddingClient
 
 
 def create_app(settings: Neo4jSettings | None = None) -> FastAPI:
@@ -27,9 +24,6 @@ def create_app(settings: Neo4jSettings | None = None) -> FastAPI:
     templates = Jinja2Templates(
         directory=str(Path(__file__).resolve().parent.parent / "ui" / "templates")
     )
-    embeddings_path = Path(os.environ.get("CODXA_EMBEDDINGS_DB", "data/embeddings.db"))
-    embeddings_dim = int(os.environ.get("CODXA_EMBEDDINGS_DIM", "384"))
-
     @app.on_event("startup")
     def startup() -> None:
         driver = GraphDatabase.driver(
@@ -38,10 +32,7 @@ def create_app(settings: Neo4jSettings | None = None) -> FastAPI:
         )
         app.state.neo4j_driver = driver
         app.state.query_service = GraphQueryService(driver, database=settings.database)
-        store = LocalVectorStore(embeddings_path, dimension=embeddings_dim)
         app.state.assistant = AssistantToolkit.from_defaults(
-            store=store,
-            embedding_client=HashEmbeddingClient(dimension=embeddings_dim),
             settings=settings,
         )
 

@@ -7,8 +7,9 @@ AOT XML exports into the Neo4j knowledge graph.
 
 - `src/pipeline/parser.py` – resilient XML parser that maps classes, methods,
   tables, and fields into the IR dataclasses (`src/ir/models.py`).
-- `src/graph/loader.py` – Neo4j loader that creates nodes, maintains indexes and
-  constraints, and establishes edges (`EXTENDS`, `DECLARES_METHOD`, etc.).
+- `src/graph/loader.py` – Neo4j loader that creates nodes, maintains indexes
+  (including vector/full-text search indexes), and establishes edges
+  (`EXTENDS`, `DECLARES_METHOD`, etc.).
 - `src/pipeline/ingest.py` – orchestration layer that wires the parser and the
   loader together and returns ingestion statistics.
 - `src/pipeline/__main__.py` – CLI entry point; run with `python -m src.pipeline`.

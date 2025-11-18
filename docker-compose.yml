@@ -14,14 +14,11 @@ services:
       OPENAI_API_BASE: ${OPENAI_API_BASE:-}
       CODXA_VECTOR_INDEX_NAME: ${CODXA_VECTOR_INDEX_NAME:-codex_vector_index}
       CODXA_KEYWORD_INDEX_NAME: ${CODXA_KEYWORD_INDEX_NAME:-codex_keyword_index}
-      CODXA_EMBEDDINGS_DB: /app/data/embeddings.db
-      CODXA_EMBEDDINGS_DIM: "384"
+      CODXA_VECTOR_DIMENSIONS: ${CODXA_VECTOR_DIMENSIONS:-3072}
     ports:
       - "8000:8000"
     depends_on:
       - neo4j
-    volumes:
-      - ./data:/app/data
 
   neo4j:
     image: neo4j:5.14.0-community

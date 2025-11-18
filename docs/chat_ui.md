@@ -11,7 +11,8 @@ simple chat interface.
 - `POST /assistant/method-source` – fetch stored method body/source metadata.
 
 These routes rely on `AssistantToolkit` (`src/assistant/toolkit.py`), which
-wraps `GraphQueryService` and the vector store for reuse by future LLM agents.
+wraps Neo4j vector/full-text queries plus an OpenAI embedding client for reuse
+by future LLM agents.
 
 ## UI
 
@@ -22,8 +23,9 @@ endpoints above. It supports:
 - Node explanation by ID.
 - Retrieval of x++ method source snippets for grounding LLM responses.
 
-Set `CODXA_EMBEDDINGS_DB` and `CODXA_EMBEDDINGS_DIM` environment variables to
-point the API at the generated embeddings database (defaults to
-`data/embeddings.db` and dimension `384`).
+Ensure the following environment variables are available to the API container:
 
-
+- `OPENAI_API_KEY`
+- `OPENAI_EMBED_MODEL` (defaults to `text-embedding-3-large`)
+- `CODXA_VECTOR_INDEX_NAME` and `CODXA_KEYWORD_INDEX_NAME` (must match the names
+  created during ingestion)
