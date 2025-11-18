@@ -9,7 +9,7 @@ from typing import Iterable, Sequence
 
 from neo4j import Driver, GraphDatabase, Session
 
-from src.config import Neo4jSettings
+from src.config import GraphIndexSettings, Neo4jSettings
 from src.graph.schema import (
     DEFAULT_SCHEMA,
     SchemaMetadata,
@@ -34,11 +34,16 @@ from src.ir.models import FieldAccessType
 
 
 @dataclass
+SEARCHABLE_LABEL = "Searchable"
+
+
+@dataclass
 class GraphLoader:
     """High-level helper that persists IR objects into Neo4j."""
 
     settings: Neo4jSettings
     schema: SchemaMetadata = DEFAULT_SCHEMA
+    index_settings: GraphIndexSettings = GraphIndexSettings()
     driver: Driver | None = None
 
     def __post_init__(self) -> None:
@@ -73,11 +78,31 @@ class GraphLoader:
                     )
                     session.run(index_query)
 
+    def ensure_indexes(self) -> None:
+        with self._session() as session:
+            keyword_query = (
+                f"CREATE FULLTEXT INDEX {self.index_settings.keyword_index} IF NOT EXISTS "
+                f"FOR (n:{SEARCHABLE_LABEL}) ON EACH [n.summary, n.name, n.aotPath]"
+            )
+            session.run(keyword_query)
+
+            vector_query = (
+                f"CREATE VECTOR INDEX {self.index_settings.vector_index} IF NOT EXISTS "
+                f"FOR (n:{SEARCHABLE_LABEL}) ON (n.embedding) "
+                "OPTIONS {indexConfig: {`vector.dimensions`: $dimensions, "
+                "`vector.similarity_function`: 'cosine'}}"
+            )
+            session.run(vector_query, dimensions=self.index_settings.vector_dimensions)
+
+    def ensure_schema(self) -> None:
+        self.ensure_constraints()
+        self.ensure_indexes()
+
     # Public API -------------------------------------------------------------------
     def sync_ir(self, classes: Sequence[ClassIR], tables: Sequence[TableIR]) -> None:
         """Upsert nodes and relationships for the provided IR objects."""
 
-        self.ensure_constraints()
+        self.ensure_schema()
 
         with self._session() as session:
             for class_ir in classes:
