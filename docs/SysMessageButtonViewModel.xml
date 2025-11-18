@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>SysMessageButtonViewModel</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+/// <summary>
+/// The <c>SysMessageButtonViewModel</c> class controls forms buttons used by message processor forms.
+/// </summary>
+public abstract class SysMessageButtonViewModel
+{
+    FormFunctionButtonControl       button;
+
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>new</Name>
+				<Source><![CDATA[
+    protected void new()
+    {
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>initialize</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Initializes the instance parameters.
+    /// </summary>
+    /// <param name = "_messageDataSource">A message form data source.</param>
+    /// <param name = "_button">A button.</param>
+    [Hookable(false)]
+    protected void initialize(
+        FormDataSource            _messageDataSource,
+        FormFunctionButtonControl _button)
+    {
+        this.button = _button;
+
+        if (_messageDataSource)
+        {
+            _messageDataSource.OnSelectionChanged += eventhandler(this.onMessageDataSourceSelectionChanged);
+            _messageDataSource.OnMarkChanged += eventhandler(this.onMessageDataSourceMarkChanged);
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>enableButton</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Determines if the button should be enabled.
+    /// </summary>
+    /// <param name = "_formDataSource">The form data source.</param>
+    /// <returns>true if the button should be enabled; otherwise, false.</returns>
+    public abstract boolean enableButton(FormDataSource _formDataSource)
+    {
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>onMessageDataSourceSelectionChanged</Name>
+				<Source><![CDATA[
+    [SuppressBpWarning('BPParameterNotUsed', 'Parameter is required by the implemented handler signature.')]
+    private void onMessageDataSourceSelectionChanged(FormDataSource _sender, FormDataSourceEventArgs _e)
+    {
+        if (button)
+        {
+            button.enabled(this.enableButton(_sender));
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>onMessageDataSourceMarkChanged</Name>
+				<Source><![CDATA[
+    [SuppressBpWarning('BPParameterNotUsed', 'Parameter is required by the implemented handler signature.')]
+    private void onMessageDataSourceMarkChanged(FormDataSource _sender, FormDataSourceEventArgs _e)
+    {
+        if (button)
+        {
+            button.enabled(this.enableButton(_sender));
+        }
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

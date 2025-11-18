@@ -9,7 +9,7 @@ Codex AOTGraph ingests AOT XML exports, turns them into a richly linked graph, e
 ## Highlights
 
 - **Graph-native AOT model** – Classes, tables, fields, and methods become first-class nodes with dependency edges (`CALLS`, `READS_FIELD`, `WRITES_FIELD`, `EXTENDS`, …).
-- **Repeatable ingestion pipeline** – Parse XML exports into an intermediate representation and sync them into Neo4j with idempotent upserts.
+- **Repeatable ingestion pipeline** – Parse XML exports (or zip archives) into an intermediate representation and sync them into Neo4j with idempotent upserts.
 - **Developer APIs & UI** – FastAPI service exposing where-used, field access, class hierarchy queries, and minimal web explorers at `/explorer` and `/assistant`.
 - **Embeddings & semantic search** – Hash-based embeddings out of the box (swap in a managed provider later) with a SQLite-backed vector store for RAG-style workflows.
 - **Assistant toolkit** – Orchestrates graph traversal, semantic retrieval, and source fetches to ground LLM agents in real project knowledge.
@@ -64,7 +64,7 @@ The application reads the following variables (set them locally or via Docker Co
 | `OPENAI_API_BASE` | Optional custom OpenAI base URL | – |
 | `CODXA_KEYWORD_INDEX_NAME` | Neo4j fulltext index name | `codex_keyword_index` |
 | `CODXA_VECTOR_INDEX_NAME` | Neo4j vector index name | `codex_vector_index` |
-| `CODXA_VECTOR_DIMENSIONS` | Embedding vector dimensions | `3072` |
+| `CODXA_VECTOR_DIMENSIONS` | Embedding vector dimensions | `2048` |
 
 ---
 
@@ -100,13 +100,22 @@ Stop everything with `docker compose down`. To nuke volumes, add `--volumes`.
    pip install -e .
    ```
 3. Export required environment variables.
+   ```powershell
+   # PowerShell helper to load values from .env into the current session
+   ./scripts/export-env.ps1
+   # or specify a custom path
+   ./scripts/export-env.ps1 -EnvPath .env.sample
+   ```
 4. Run the FastAPI server:
    ```bash
    uvicorn src.api.server:create_app --factory --reload
    ```
-5. Ingest AOT XML exports (repeat as needed):
+5. Ingest AOT XML exports or zip archives (repeat as needed):
    ```bash
    python -m src.pipeline path/to/export1.xml path/to/dir/of/xmls
+   python -m src.pipeline path/to/AOTExport.zip
+   # Optional flags
+   python -m src.pipeline --staging-dir ./tmp --keep-extracted samples/MessageProcessor.zip
    ```
 6. Generate embeddings (optional but recommended for semantic search / assistant):
    ```bash
@@ -123,7 +132,7 @@ Stop everything with `docker compose down`. To nuke volumes, add `--volumes`.
 - Parses AOT XML into structured dataclasses.
 - Computes method call graphs and field read/write relationships.
 - Upserts nodes and edges into Neo4j with unique constraints and indexes.
-- CLI entry point: `python -m src.pipeline`.
+- CLI entry point: `python -m src.pipeline` (accepts files, directories, or zip archives).
 
 More: `docs/ingestion_pipeline.md`
 

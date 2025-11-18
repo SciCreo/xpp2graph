@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, Iterable, Sequence, Tuple
+from typing import Dict, Iterable, Optional, Sequence, Tuple
 from xml.etree import ElementTree as ET
 
 from src.ir import ClassIR, FieldIR, FieldAccessIR, FieldAccessType, MethodIR, TableIR
@@ -26,15 +26,20 @@ def _strip_namespace(tag: str) -> str:
 class AOTParser:
     """Parses AOT XML exports into IR objects."""
 
+    def __init__(self) -> None:
+        self._current_file: Optional[Path] = None
+
     def parse(self, paths: Sequence[Path]) -> Tuple[Dict[str, ClassIR], Dict[str, TableIR]]:
         classes: Dict[str, ClassIR] = {}
         tables: Dict[str, TableIR] = {}
 
         for path in paths:
+            self._current_file = path
             tree = ET.parse(path)
             root = tree.getroot()
             self._walk(root, classes=classes, tables=tables)
 
+        self._current_file = None
         self._populate_field_accesses(classes, tables)
         return classes, tables
 
@@ -54,14 +59,18 @@ class AOTParser:
             current_model = element.attrib.get("Name") or element.attrib.get("name") or current_model
             current_package = element.attrib.get("Name") or element.attrib.get("name") or current_package
 
+        base_path = getattr(element, "base", None)
+
         if tag.lower() in {"axclass", "class"}:
-            class_ir = self._parse_class(element, current_model, current_package)
-            classes[class_ir.element_id()] = class_ir
+            class_ir = self._parse_class(element, current_model, current_package, path_hint=base_path)
+            if class_ir:
+                classes[class_ir.element_id()] = class_ir
             return
 
         if tag.lower() in {"axtable", "table"}:
             table_ir = self._parse_table(element, current_model, current_package)
-            tables[table_ir.element_id()] = table_ir
+            if table_ir:
+                tables[table_ir.element_id()] = table_ir
             return
 
         for child in element:
@@ -79,12 +88,16 @@ class AOTParser:
         element: ET.Element,
         model: str | None,
         package: str | None,
-    ) -> ClassIR:
+        path_hint: Optional[str] = None,
+    ) -> Optional[ClassIR]:
         name = element.attrib.get("Name") or element.attrib.get("name") or self._find_text(element, "Name")
         if not name:
-            raise ValueError("Class element missing name attribute")
+            name = self._placeholder_name("Class")
+            is_placeholder = True
+        else:
+            is_placeholder = False
 
-        aot_path = element.attrib.get("Id") or element.attrib.get("Path") or name
+        aot_path = element.attrib.get("Id") or element.attrib.get("Path") or path_hint or name
         layer = element.attrib.get("Layer")
         base_class = self._find_text(element, "Extends") or element.attrib.get("Extends")
         implements = tuple(
@@ -101,29 +114,34 @@ class AOTParser:
             layer=layer,
             base_class=base_class,
             implements=implements,
+            is_placeholder=is_placeholder,
         )
 
-        methods_container = self._find_child(element, "Methods")
-        if methods_container is None:
-            methods_container = element
+        method_elements = element.findall(".//Methods/Method")
+        if not method_elements:
+            method_elements = element.findall(".//Method")
+        if not method_elements:
+            method_elements = element.findall(".//AxMethod")
 
-        for method_element in methods_container:
-            tag = _strip_namespace(method_element.tag)
-            if tag.lower() not in {"method", "axmethod"}:
+        for method_element in method_elements:
+            tag = _strip_namespace(method_element.tag).lower()
+            if "method" not in tag:
                 continue
             method_ir = self._parse_method(method_element, class_ir)
-            class_ir.add_method(method_ir)
+            if method_ir:
+                class_ir.add_method(method_ir)
 
         return class_ir
 
-    def _parse_method(self, element: ET.Element, class_ir: ClassIR) -> MethodIR:
+    def _parse_method(self, element: ET.Element, class_ir: ClassIR) -> Optional[MethodIR]:
         name = (
             element.attrib.get("Name")
             or element.attrib.get("name")
             or self._find_text(element, "Name")
         )
         if not name:
-            raise ValueError(f"Method element in class {class_ir.name} missing name")
+            self._warn(f"Skipping method element missing name in class {class_ir.name}")
+            return None
 
         aot_path = element.attrib.get("Id") or element.attrib.get("Path") or f"{class_ir.aot_path}/{name}"
         access = _parse_access_modifier(element)
@@ -150,10 +168,13 @@ class AOTParser:
         element: ET.Element,
         model: str | None,
         package: str | None,
-    ) -> TableIR:
+    ) -> Optional[TableIR]:
         name = element.attrib.get("Name") or element.attrib.get("name") or self._find_text(element, "Name")
         if not name:
-            raise ValueError("Table element missing name attribute")
+            name = self._placeholder_name("Table")
+            is_placeholder = True
+        else:
+            is_placeholder = False
 
         aot_path = element.attrib.get("Id") or element.attrib.get("Path") or name
         layer = element.attrib.get("Layer")
@@ -164,27 +185,35 @@ class AOTParser:
             model=model or "UNKNOWN",
             package=package,
             layer=layer,
+            is_placeholder=is_placeholder,
         )
 
-        fields_container = self._find_child(element, "Fields")
-        if fields_container is None:
-            fields_container = element.findall(".//Field") or []
+        fields_container = element.find(".//Fields")
+        field_elements: list[ET.Element]
+        if fields_container is not None:
+            field_elements = list(fields_container)
         else:
-            fields_container = list(fields_container)
+            field_elements = element.findall(".//AxTableField")
+            if not field_elements:
+                field_elements = element.findall(".//Field")
 
-        for field_element in fields_container:
-            tag = _strip_namespace(field_element.tag)
-            if tag.lower() not in {"field", "axfield"}:
+        for field_element in field_elements:
+            tag = _strip_namespace(field_element.tag).lower()
+            if "field" not in tag:
                 continue
             field_ir = self._parse_field(field_element, table_ir)
-            table_ir.add_field(field_ir)
+            if field_ir:
+                table_ir.add_field(field_ir)
 
         return table_ir
 
-    def _parse_field(self, element: ET.Element, table_ir: TableIR) -> FieldIR:
+    def _parse_field(self, element: ET.Element, table_ir: TableIR) -> Optional[FieldIR]:
         name = element.attrib.get("Name") or element.attrib.get("name") or self._find_text(element, "Name")
         if not name:
-            raise ValueError(f"Field element in table {table_ir.name} missing name")
+            name = self._placeholder_name("Field", suffix=table_ir.name)
+            is_placeholder = True
+        else:
+            is_placeholder = False
 
         aot_path = (
             element.attrib.get("Id")
@@ -204,6 +233,7 @@ class AOTParser:
             model=table_ir.model,
             extended_data_type=edt,
             field_type=field_type,
+            is_placeholder=is_placeholder,
         )
 
     # Field & call extraction -----------------------------------------------------
@@ -282,6 +312,18 @@ class AOTParser:
             if _strip_namespace(child.tag).lower() == tag_name.lower():
                 return child
         return None
+
+    def _warn(self, message: str) -> None:
+        location = str(self._current_file) if self._current_file else "unknown file"
+        print(f"[parser] {message} ({location})")
+
+    def _placeholder_name(self, prefix: str, suffix: str | None = None) -> str:
+        base = prefix.strip() or "Unnamed"
+        if suffix:
+            base = f"{base}_{suffix}"
+        if self._current_file:
+            return f"{base}_{abs(hash(self._current_file)) & 0xFFFF}"
+        return f"{base}_Placeholder"
 
 
 def _parse_access_modifier(element: ET.Element) -> AccessModifier:

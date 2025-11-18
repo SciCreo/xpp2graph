@@ -13,6 +13,7 @@ AOT XML exports into the Neo4j knowledge graph.
 - `src/pipeline/ingest.py` – orchestration layer that wires the parser and the
   loader together and returns ingestion statistics.
 - `src/pipeline/__main__.py` – CLI entry point; run with `python -m src.pipeline`.
+  Handles raw XML paths, directories, or zip archives.
 
 ## Running the Pipeline
 
@@ -25,13 +26,22 @@ AOT XML exports into the Neo4j knowledge graph.
    ```bash
    pip install -e .
    ```
-3. Ingest one or more XML exports:
+3. Ingest one or more XML exports or zip archives:
    ```bash
    python -m src.pipeline path/to/AxClass.xml path/to/AxTable.xml
+   python -m src.pipeline path/to/AOTExport.zip
+   ```
+
+   Use `--staging-dir` to control where archives are extracted, and
+   `--keep-extracted` to retain the temporary files for inspection:
+
+   ```bash
+   python -m src.pipeline --staging-dir ./tmp --keep-extracted samples/MessageProcessor.zip
    ```
 
 The pipeline automatically discovers XML files inside directories, enforces
 required Neo4j constraints, and reports the number of classes, methods, tables,
-and fields processed.
+and fields processed. Descriptor metadata (when present in the archive) is
+logged to help confirm the module that was ingested.
 
 

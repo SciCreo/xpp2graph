@@ -6,8 +6,10 @@ they are persisted into the knowledge graph.
 """
 
 from .models import (
+    AccessModifier,
     ClassIR,
     FieldAccessIR,
+    FieldAccessType,
     FieldIR,
     MethodIR,
     TableIR,
@@ -15,8 +17,10 @@ from .models import (
 )
 
 __all__ = [
+    "AccessModifier",
     "ClassIR",
     "FieldAccessIR",
+    "FieldAccessType",
     "FieldIR",
     "MethodIR",
     "TableIR",

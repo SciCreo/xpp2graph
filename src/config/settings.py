@@ -79,13 +79,13 @@ class GraphIndexSettings:
 
     keyword_index: str = "codex_keyword_index"
     vector_index: str = "codex_vector_index"
-    vector_dimensions: int = 3072
+    vector_dimensions: int = 2048
 
 
 def load_index_settings() -> GraphIndexSettings:
     keyword_index = os.environ.get("CODXA_KEYWORD_INDEX_NAME", "codex_keyword_index")
     vector_index = os.environ.get("CODXA_VECTOR_INDEX_NAME", "codex_vector_index")
-    vector_dimensions = int(os.environ.get("CODXA_VECTOR_DIMENSIONS", "3072"))
+    vector_dimensions = int(os.environ.get("CODXA_VECTOR_DIMENSIONS", "2048"))
     return GraphIndexSettings(
         keyword_index=keyword_index,
         vector_index=vector_index,

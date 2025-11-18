@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: codex-aotgraph
+Version: 0.1.0
+Summary: Ingestion pipeline and services for Codex AOTGraph.
+Author: Codex Team
+Requires-Python: >=3.11
+Requires-Dist: neo4j>=5.19.0
+Requires-Dist: fastapi>=0.111.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: jinja2>=3.1.2
+Requires-Dist: openai>=2.8.0

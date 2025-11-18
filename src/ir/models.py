@@ -67,6 +67,7 @@ class MethodIR:
     body: Optional[str] = None
     called_methods: List[str] = field(default_factory=list)
     field_accesses: List["FieldAccessIR"] = field(default_factory=list)
+    is_placeholder: bool = False
 
     def element_id(self) -> str:
         """Return the canonical ID used in the Neo4j graph."""
@@ -84,6 +85,7 @@ class FieldIR:
     model: str
     extended_data_type: Optional[str] = None
     field_type: Optional[str] = None
+    is_placeholder: bool = False
 
     def element_id(self) -> str:
         return parse_element_id(self.model, self.table_name, self.name)
@@ -99,6 +101,7 @@ class TableIR:
     package: Optional[str] = None
     layer: Optional[str] = None
     fields: Dict[str, FieldIR] = field(default_factory=dict)
+    is_placeholder: bool = False
 
     def element_id(self) -> str:
         return parse_element_id(self.model, self.name)
@@ -119,6 +122,7 @@ class ClassIR:
     base_class: Optional[str] = None
     implements: Tuple[str, ...] = ()
     methods: Dict[str, MethodIR] = field(default_factory=dict)
+    is_placeholder: bool = False
 
     def element_id(self) -> str:
         return parse_element_id(self.model, self.name)

@@ -3,3 +3,6 @@ neo4j/data
 neo4j/logs
 neo4j/plugins
 data
+samples/
+__pycache__/
+tmp/

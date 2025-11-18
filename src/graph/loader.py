@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from neo4j import Driver, GraphDatabase, Session
+from neo4j.exceptions import Neo4jError
 
 from src.config import GraphIndexSettings, Neo4jSettings
 from src.graph.schema import (
@@ -33,7 +34,6 @@ from src.ir import ClassIR, FieldIR, MethodIR, TableIR
 from src.ir.models import FieldAccessType
 
 
-@dataclass
 SEARCHABLE_LABEL = "Searchable"
 
 
@@ -89,10 +89,21 @@ class GraphLoader:
             vector_query = (
                 f"CREATE VECTOR INDEX {self.index_settings.vector_index} IF NOT EXISTS "
                 f"FOR (n:{SEARCHABLE_LABEL}) ON (n.embedding) "
-                "OPTIONS {indexConfig: {`vector.dimensions`: $dimensions, "
+                "OPTIONS {indexProvider: 'vector-1.0', "
+                "indexConfig: {`vector.dimensions`: $dimensions, "
                 "`vector.similarity_function`: 'cosine'}}"
             )
-            session.run(vector_query, dimensions=self.index_settings.vector_dimensions)
+            try:
+                session.run(vector_query, dimensions=self.index_settings.vector_dimensions)
+            except Neo4jError as exc:
+                message = str(exc)
+                lowered = message.lower()
+                if "invalid input 'vector'" in lowered or "vector" in lowered:
+                    self._create_vector_index_fallback(session)
+                elif "equivalent index already exists" in lowered:
+                    pass
+                else:
+                    raise
 
     def ensure_schema(self) -> None:
         self.ensure_constraints()
@@ -307,6 +318,28 @@ class GraphLoader:
                 end_label=NODE_PACKAGE,
                 end_id=package_name,
             )
+
+    def _create_vector_index_fallback(self, session: Session) -> None:
+        try:
+            session.run(
+                """
+                CALL db.index.vector.createNodeIndex(
+                    $name,
+                    $label,
+                    'embedding',
+                    $dimensions,
+                    'cosine'
+                )
+                """,
+                name=self.index_settings.vector_index,
+                label=SEARCHABLE_LABEL,
+                dimensions=self.index_settings.vector_dimensions,
+            )
+        except Neo4jError as exc:
+            message = str(exc).lower()
+            if "equivalent index already exists" in message:
+                return
+            raise
 
 
 def parse_related_class_id(class_reference: str, fallback_model: str) -> str | None:

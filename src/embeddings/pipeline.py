@@ -97,8 +97,17 @@ class EmbeddingPipeline:
 
     def _vector_to_list(self, vector: np.ndarray | Sequence[float]) -> List[float]:
         if isinstance(vector, np.ndarray):
-            return vector.astype(float).tolist()
-        return [float(v) for v in vector]
+            values = vector.astype(float).tolist()
+        else:
+            values = [float(v) for v in vector]
+
+        target_dim = self.index_settings.vector_dimensions
+        if target_dim:
+            if len(values) > target_dim:
+                values = values[:target_dim]
+            elif len(values) < target_dim:
+                values = values + [0.0] * (target_dim - len(values))
+        return values
 
     def _upsert_embeddings(self, driver, rows: List[dict]) -> None:
         with driver.session(database=self.settings.database) as session:
