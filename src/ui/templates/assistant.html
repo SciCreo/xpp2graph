@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Codex Assistant</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      header {
+        padding: 1.5rem 2rem;
+        background: #1e293b;
+      }
+      main {
+        padding: 2rem;
+        display: grid;
+        gap: 1.5rem;
+      }
+      section {
+        background: #1f2937;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.6);
+      }
+      h2 {
+        margin-top: 0;
+      }
+      label {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        background: #111827;
+        color: #e2e8f0;
+        border: 1px solid #334155;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      button {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 0.5rem;
+        background: #6366f1;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+      }
+      pre {
+        background: #0f172a;
+        color: #dbeafe;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+      .error {
+        color: #f87171;
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Codex Assistant</h1>
+      <p>Semantic search and contextual insights over your AOT graph.</p>
+    </header>
+    <main>
+      <section>
+        <h2>Semantic Search</h2>
+        <label>
+          Query
+          <textarea id="searchQuery" rows="3" placeholder="How is customer credit limit enforced?"></textarea>
+        </label>
+        <label>
+          Label (optional)
+          <select id="searchLabel">
+            <option value="">Any</option>
+            <option value="Method">Method</option>
+            <option value="Class">Class</option>
+            <option value="Table">Table</option>
+            <option value="Field">Field</option>
+          </select>
+        </label>
+        <label>
+          Top K
+          <input id="searchTopK" type="number" value="5" min="1" max="20" />
+        </label>
+        <button id="searchSubmit">Search</button>
+        <pre id="searchOutput">No query executed yet.</pre>
+        <div class="error" id="searchError"></div>
+      </section>
+
+      <section>
+        <h2>Explain Node</h2>
+        <label>
+          Node ID (e.g. Model/ClassName or Model/ClassName/method)
+          <input id="explainNodeId" placeholder="ApplicationSuite/CustTable/validateWrite" />
+        </label>
+        <button id="explainSubmit">Explain</button>
+        <pre id="explainOutput">No explanation yet.</pre>
+        <div class="error" id="explainError"></div>
+      </section>
+
+      <section>
+        <h2>Fetch Method Source</h2>
+        <label>
+          Method ID
+          <input id="sourceMethodId" placeholder="ApplicationSuite/CustTable/validateWrite" />
+        </label>
+        <button id="sourceSubmit">Fetch Source</button>
+        <pre id="sourceOutput">No source loaded.</pre>
+        <div class="error" id="sourceError"></div>
+      </section>
+    </main>
+
+    <script>
+      async function postJSON(url, body, outputEl, errorEl) {
+        outputEl.textContent = "Loading...";
+        errorEl.textContent = "";
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.detail || response.statusText);
+          }
+          const data = await response.json();
+          outputEl.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          errorEl.textContent = err.message;
+          outputEl.textContent = "No data.";
+        }
+      }
+
+      document.getElementById("searchSubmit").addEventListener("click", () => {
+        const query = document.getElementById("searchQuery").value.trim();
+        const label = document.getElementById("searchLabel").value;
+        const topK = parseInt(document.getElementById("searchTopK").value, 10) || 5;
+        if (!query) {
+          document.getElementById("searchError").textContent = "Query is required.";
+          return;
+        }
+        postJSON(
+          "/assistant/search",
+          { query, label: label || null, topK },
+          document.getElementById("searchOutput"),
+          document.getElementById("searchError")
+        );
+      });
+
+      document.getElementById("explainSubmit").addEventListener("click", () => {
+        const nodeId = document.getElementById("explainNodeId").value.trim();
+        if (!nodeId) {
+          document.getElementById("explainError").textContent = "Node ID is required.";
+          return;
+        }
+        postJSON(
+          "/assistant/explain",
+          { nodeId },
+          document.getElementById("explainOutput"),
+          document.getElementById("explainError")
+        );
+      });
+
+      document.getElementById("sourceSubmit").addEventListener("click", () => {
+        const methodId = document.getElementById("sourceMethodId").value.trim();
+        if (!methodId) {
+          document.getElementById("sourceError").textContent = "Method ID is required.";
+          return;
+        }
+        postJSON(
+          "/assistant/method-source",
+          { methodId },
+          document.getElementById("sourceOutput"),
+          document.getElementById("sourceError")
+        );
+      });
+    </script>
+  </body>
+</html>
+
+

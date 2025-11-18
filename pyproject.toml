@@ -1,0 +1,26 @@
+[project]
+name = "codex-aotgraph"
+version = "0.1.0"
+description = "Ingestion pipeline and services for Codex AOTGraph."
+authors = [
+  { name = "Codex Team" }
+]
+requires-python = ">=3.11"
+dependencies = [
+  "neo4j>=5.19.0",
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.30.0",
+  "numpy>=1.26.0",
+]
+
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+
+

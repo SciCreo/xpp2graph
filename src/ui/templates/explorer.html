@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Codex AOTGraph Explorer</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f6f7fb;
+        color: #1f2933;
+      }
+      header {
+        background: #273b4a;
+        color: #fff;
+        padding: 1rem 2rem;
+      }
+      main {
+        padding: 2rem;
+        display: grid;
+        gap: 1.5rem;
+      }
+      section {
+        background: #fff;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: 1.5rem;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      .form-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        font-weight: 600;
+        font-size: 0.9rem;
+        flex: 1;
+      }
+      input {
+        margin-top: 0.25rem;
+        padding: 0.5rem;
+        border: 1px solid #cbd2d9;
+        border-radius: 0.4rem;
+      }
+      button {
+        padding: 0.6rem 1rem;
+        border: none;
+        border-radius: 0.4rem;
+        background: #2563eb;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+      pre {
+        background: #111827;
+        color: #f8fafc;
+        padding: 1rem;
+        border-radius: 0.4rem;
+        overflow-x: auto;
+      }
+      .error {
+        color: #dc2626;
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Codex AOTGraph Explorer</h1>
+      <p>Run graph queries without touching Cypher.</p>
+    </header>
+    <main>
+      <section>
+        <h2>Where is this method used?</h2>
+        <div class="form-row">
+          <label>
+            Class Name
+            <input id="methodClass" placeholder="CustTable" />
+          </label>
+          <label>
+            Method Name
+            <input id="methodName" placeholder="validateWrite" />
+          </label>
+          <label>
+            Model (optional)
+            <input id="methodModel" placeholder="ApplicationSuite" />
+          </label>
+          <button id="methodSubmit">Run</button>
+        </div>
+        <pre id="methodOutput">No query executed yet.</pre>
+        <div class="error" id="methodError"></div>
+      </section>
+
+      <section>
+        <h2>Who reads or writes this field?</h2>
+        <div class="form-row">
+          <label>
+            Table Name
+            <input id="fieldTable" placeholder="CustTable" />
+          </label>
+          <label>
+            Field Name
+            <input id="fieldName" placeholder="CreditMax" />
+          </label>
+          <label>
+            Model (optional)
+            <input id="fieldModel" placeholder="ApplicationSuite" />
+          </label>
+          <button id="fieldSubmit">Run</button>
+        </div>
+        <pre id="fieldOutput">No query executed yet.</pre>
+        <div class="error" id="fieldError"></div>
+      </section>
+
+      <section>
+        <h2>Show class hierarchy</h2>
+        <div class="form-row">
+          <label>
+            Class Name
+            <input id="className" placeholder="CustTable" />
+          </label>
+          <label>
+            Model (optional)
+            <input id="classModel" placeholder="ApplicationSuite" />
+          </label>
+          <button id="classSubmit">Run</button>
+        </div>
+        <pre id="classOutput">No query executed yet.</pre>
+        <div class="error" id="classError"></div>
+      </section>
+    </main>
+
+    <script>
+      async function runQuery(url, outputEl, errorEl) {
+        outputEl.textContent = "Loading...";
+        errorEl.textContent = "";
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.detail || response.statusText);
+          }
+          const data = await response.json();
+          outputEl.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          errorEl.textContent = err.message;
+          outputEl.textContent = "No data.";
+        }
+      }
+
+      document.getElementById("methodSubmit").addEventListener("click", () => {
+        const className = document.getElementById("methodClass").value.trim();
+        const methodName = document.getElementById("methodName").value.trim();
+        const model = document.getElementById("methodModel").value.trim();
+
+        if (!className || !methodName) {
+          document.getElementById("methodError").textContent =
+            "Class and method names are required.";
+          return;
+        }
+
+        const params = new URLSearchParams({ className, methodName });
+        if (model) params.append("model", model);
+
+        runQuery(
+          `/where-used/method?${params.toString()}`,
+          document.getElementById("methodOutput"),
+          document.getElementById("methodError")
+        );
+      });
+
+      document.getElementById("fieldSubmit").addEventListener("click", () => {
+        const tableName = document.getElementById("fieldTable").value.trim();
+        const fieldName = document.getElementById("fieldName").value.trim();
+        const model = document.getElementById("fieldModel").value.trim();
+
+        if (!tableName || !fieldName) {
+          document.getElementById("fieldError").textContent =
+            "Table and field names are required.";
+          return;
+        }
+
+        const params = new URLSearchParams({ tableName, fieldName });
+        if (model) params.append("model", model);
+
+        runQuery(
+          `/field-access?${params.toString()}`,
+          document.getElementById("fieldOutput"),
+          document.getElementById("fieldError")
+        );
+      });
+
+      document.getElementById("classSubmit").addEventListener("click", () => {
+        const className = document.getElementById("className").value.trim();
+        const model = document.getElementById("classModel").value.trim();
+
+        if (!className) {
+          document.getElementById("classError").textContent =
+            "Class name is required.";
+          return;
+        }
+
+        const params = new URLSearchParams({ className });
+        if (model) params.append("model", model);
+
+        runQuery(
+          `/class-hierarchy?${params.toString()}`,
+          document.getElementById("classOutput"),
+          document.getElementById("classError")
+        );
+      });
+    </script>
+  </body>
+</html>
+
+
